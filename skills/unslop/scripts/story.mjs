@@ -1,8 +1,8 @@
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { dirname, extname, join, normalize, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 
 const usage = "usage: node story.mjs <story.html> <out.mp4> [--wide], or node story.mjs <story.html> --play to watch it live in a browser window";
 const args = process.argv.slice(2);
@@ -221,7 +221,8 @@ const runtime = `
       const wrap = put("s-fade", { ...rect(b.left - pad, b.top - pad, b.width + pad * 2, b.height + pad * 2), transitionDelay: index * 70 + "ms" });
       wrap.innerHTML = '<div class="s-box" style="position:absolute;inset:0"></div>' +
         [["left", "top"], ["right", "top"], ["left", "bottom"], ["right", "bottom"]].map(([x, y]) => '<span class="s-corner" style="position:absolute;' + x + ':-4px;' + y + ':-4px"></span>').join("") +
-        '<span class="s-tag" style="position:absolute;left:0;top:-40px">' + el.dataset.slop + "</span>";
+        '<span class="s-tag" style="position:absolute;left:0;top:-40px"></span>';
+      wrap.querySelector(".s-tag").textContent = el.dataset.slop;
     });
   }
 
@@ -379,13 +380,22 @@ const runtime = `
 
 const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".mp4": "video/mp4" };
 const server = createServer((request, response) => {
-  const path = decodeURIComponent(new URL(request.url, "http://local").pathname);
+  let path;
+  try {
+    path = decodeURIComponent(new URL(request.url, "http://local").pathname);
+  } catch {
+    response.writeHead(400);
+    return response.end();
+  }
   if (path === "/__stage.html") {
     response.writeHead(200, { "content-type": "text/html" });
     return response.end(stage);
   }
   const target = normalize(join(root, path.replace(/^\/__story\//, "/")));
-  if (!target.startsWith(root) || !existsSync(target)) {
+  // startsWith(root) would also accept a sibling like "<root>-secret", so
+  // compare the relative path: it must stay inside root and name a file.
+  const inside = relative(root, target);
+  if (!inside || inside.startsWith("..") || isAbsolute(inside) || !existsSync(target) || !statSync(target).isFile()) {
     response.writeHead(404);
     return response.end();
   }
