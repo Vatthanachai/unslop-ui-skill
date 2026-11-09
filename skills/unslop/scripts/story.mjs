@@ -380,6 +380,13 @@ const runtime = `
 
 const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".avif": "image/avif", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".mp4": "video/mp4" };
 const server = createServer((request, response) => {
+  // Refuse any other Host header, so a web page cannot reach this server
+  // through a DNS name it controls (DNS rebinding) and read the story files.
+  const port = server.address().port;
+  if (![`127.0.0.1:${port}`, `localhost:${port}`].includes(request.headers.host)) {
+    response.writeHead(403);
+    return response.end();
+  }
   let path;
   try {
     path = decodeURIComponent(new URL(request.url, "http://local").pathname);

@@ -153,6 +153,14 @@ try {
       if (selected) node.setAttribute("src", selected);
     });
     copy.querySelectorAll("script, noscript, link[rel='stylesheet'], link[rel='preload'], link[rel='modulepreload'], style").forEach((node) => node.remove());
+    // Scripts are gone, so inline handlers and javascript: links must go too,
+    // or they would run when the saved snapshot is opened later.
+    for (const node of copy.querySelectorAll("*")) {
+      for (const attr of [...node.attributes]) {
+        if (/^on/i.test(attr.name)) node.removeAttribute(attr.name);
+        else if (/^(href|src|xlink:href|action|formaction)$/i.test(attr.name) && /^\s*javascript:/i.test(attr.value)) node.removeAttribute(attr.name);
+      }
+    }
     copy.querySelectorAll("[srcset]").forEach((node) => node.removeAttribute("srcset"));
     copy.querySelectorAll("source").forEach((node) => node.remove());
     copy.querySelectorAll("[loading]").forEach((node) => node.removeAttribute("loading"));
